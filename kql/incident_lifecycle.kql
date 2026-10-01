@@ -1,0 +1,18 @@
+
+SecurityIncident
+| where Title in (
+    "SOC-01 Password Spraying Detection",
+    "SOC-02 Rapid Location-Change Detection",
+    "SOC-03 Privilege Escalation Detection"
+)
+| summarize arg_max(TimeGenerated, *) by IncidentNumber
+| project
+    IncidentNumber,
+    Title,
+    Severity,
+    Status,
+    Classification,
+    ClassificationReason,
+    CreatedTime,
+    ClosedTime
+| sort by IncidentNumber asc

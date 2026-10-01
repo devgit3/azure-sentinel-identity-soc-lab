@@ -1,0 +1,29 @@
+IdentityLab_CL
+| where EventType == "SignIn"
+| where Result == "Success"
+| sort by UserPrincipalName asc, TimeGenerated asc
+| serialize
+| extend
+    PreviousUser = prev(UserPrincipalName),
+    PreviousTime = prev(TimeGenerated),
+    PreviousCountry = prev(Country),
+    PreviousCity = prev(City),
+    PreviousIP = prev(SourceIPAddress)
+| where UserPrincipalName == PreviousUser
+| extend MinutesBetween =
+    datetime_diff("minute", TimeGenerated, PreviousTime)
+| where Country != PreviousCountry
+| where MinutesBetween between (0 .. 60)
+| project
+    TimeGenerated,
+    UserPrincipalName,
+    PreviousTime,
+    PreviousCountry,
+    PreviousCity,
+    PreviousIP,
+    CurrentTime = TimeGenerated,
+    CurrentCountry = Country,
+    CurrentCity = City,
+    CurrentIP = SourceIPAddress,
+    MinutesBetween,
+    Severity

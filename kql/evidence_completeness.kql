@@ -1,0 +1,43 @@
+IdentityLab_CL
+| where Scenario != "Normal Activity"
+| extend IsComplete = case(
+    EventType == "SignIn",
+        isnotnull(TimeGenerated)
+        and isnotempty(UserPrincipalName)
+        and isnotempty(SourceIPAddress)
+        and isnotempty(Result)
+        and isnotempty(CorrelationId),
+
+    EventType == "Audit",
+        isnotnull(TimeGenerated)
+        and isnotempty(ActorUserPrincipalName)
+        and isnotempty(TargetUserPrincipalName)
+        and isnotempty(OperationName)
+        and isnotempty(RoleName)
+        and isnotempty(Result)
+        and isnotempty(CorrelationId),
+
+    false
+)
+| summarize
+    TotalEvents = count(),
+    CompleteEvents = countif(IsComplete == true),
+    IncompleteEvents = countif(IsComplete == false),
+    DistinctCorrelationIds = dcount(CorrelationId)
+    by Scenario
+| extend Completeness =
+    strcat(
+        round(
+            100.0 * todouble(CompleteEvents) / todouble(TotalEvents),
+            0
+        ),
+        "%"
+    )
+| project
+    Scenario,
+    TotalEvents,
+    CompleteEvents,
+    IncompleteEvents,
+    Completeness,
+    DistinctCorrelationIds
+| sort by Scenario asc

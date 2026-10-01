@@ -1,0 +1,108 @@
+let PasswordSprayAttack =
+    IdentityLab_CL
+    | where Scenario == "Password Spraying"
+    | where EventType == "SignIn"
+    | where Result == "Failure"
+    | summarize
+        FailedAttempts = count(),
+        TargetedUsers = dcount(UserPrincipalName)
+        by SourceIPAddress,
+           TimeWindow = bin(TimeGenerated, 15m)
+    | where FailedAttempts >= 5 and TargetedUsers >= 3
+    | summarize Detections = count()
+    | extend
+        Test = "Password-spraying attack",
+        Expected = 1;
+
+let PasswordSprayControl =
+    IdentityLab_CL
+    | where Scenario == "Normal Activity"
+    | where EventType == "SignIn"
+    | where Result == "Failure"
+    | summarize
+        FailedAttempts = count(),
+        TargetedUsers = dcount(UserPrincipalName)
+        by SourceIPAddress,
+           TimeWindow = bin(TimeGenerated, 15m)
+    | where FailedAttempts >= 5 and TargetedUsers >= 3
+    | summarize Detections = count()
+    | extend
+        Test = "Password-spraying normal control",
+        Expected = 0;
+
+let PrivilegeAttack =
+    IdentityLab_CL
+    | where Scenario == "Privilege Escalation"
+    | where EventType == "Audit"
+    | where OperationName == "Add member to role"
+    | where Result == "Success"
+    | where IsApprovedChange == false
+    | summarize Detections = count()
+    | extend
+        Test = "Privilege-escalation attack",
+        Expected = 1;
+
+let PrivilegeControl =
+    IdentityLab_CL
+    | where Scenario == "Normal Activity"
+    | where EventType == "Audit"
+    | where OperationName == "Add member to role"
+    | where Result == "Success"
+    | where IsApprovedChange == false
+    | summarize Detections = count()
+    | extend
+        Test = "Privilege-escalation normal control",
+        Expected = 0;
+
+let RapidLocationAttack =
+    IdentityLab_CL
+    | where Scenario == "Suspicious Sign-In"
+    | where EventType == "SignIn"
+    | where Result == "Success"
+    | sort by UserPrincipalName asc, TimeGenerated asc
+    | serialize
+    | extend
+        PreviousUser = prev(UserPrincipalName),
+        PreviousTime = prev(TimeGenerated),
+        PreviousCountry = prev(Country)
+    | where UserPrincipalName == PreviousUser
+    | extend MinutesBetween =
+        datetime_diff("minute", TimeGenerated, PreviousTime)
+    | where Country != PreviousCountry
+    | where MinutesBetween between (0 .. 60)
+    | summarize Detections = count()
+    | extend
+        Test = "Rapid location-change attack",
+        Expected = 1;
+
+let RapidLocationControl =
+    IdentityLab_CL
+    | where Scenario == "Normal Activity"
+    | where EventType == "SignIn"
+    | where Result == "Success"
+    | sort by UserPrincipalName asc, TimeGenerated asc
+    | serialize
+    | extend
+        PreviousUser = prev(UserPrincipalName),
+        PreviousTime = prev(TimeGenerated),
+        PreviousCountry = prev(Country)
+    | where UserPrincipalName == PreviousUser
+    | extend MinutesBetween =
+        datetime_diff("minute", TimeGenerated, PreviousTime)
+    | where Country != PreviousCountry
+    | where MinutesBetween between (0 .. 60)
+    | summarize Detections = count()
+    | extend
+        Test = "Rapid location-change normal control",
+        Expected = 0;
+
+union
+    PasswordSprayAttack,
+    PasswordSprayControl,
+    PrivilegeAttack,
+    PrivilegeControl,
+    RapidLocationAttack,
+    RapidLocationControl
+| extend Outcome = iff(Detections == Expected, "Pass", "Fail")
+| project Test, Expected, Detections, Outcome
+

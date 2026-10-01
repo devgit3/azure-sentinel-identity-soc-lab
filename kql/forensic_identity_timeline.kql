@@ -1,0 +1,40 @@
+IdentityLab_CL
+| where Scenario != "Normal Activity"
+| extend EvidenceAction = case(
+    EventType == "SignIn" and Result == "Failure", "Failed sign-in",
+    EventType == "SignIn" and Result == "Success", "Successful sign-in",
+    EventType == "Audit" and OperationName == "Add member to role", "Role assignment",
+    OperationName
+)
+| extend Principal = case(
+    EventType == "SignIn", UserPrincipalName,
+    EventType == "Audit", ActorUserPrincipalName,
+    "N/A"
+)
+| extend TargetAccount = case(
+    EventType == "Audit" and isnotempty(TargetUserPrincipalName),
+        TargetUserPrincipalName,
+    "N/A"
+)
+| extend Location = case(
+    isnotempty(City) and isnotempty(Country),
+        strcat(City, ", ", Country),
+    isnotempty(Country),
+        Country,
+    "N/A"
+)
+| project
+    TimeGenerated,
+    Scenario,
+    EvidenceAction,
+    Principal,
+    TargetAccount,
+    SourceIPAddress,
+    Location,
+    Result,
+    RoleName,
+    Severity,
+    CorrelationId,
+    Notes
+| sort by TimeGenerated asc
+

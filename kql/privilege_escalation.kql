@@ -1,0 +1,23 @@
+IdentityLab_CL
+| where EventType == "Audit"
+| where OperationName == "Add member to role"
+| where Result == "Success"
+| where IsApprovedChange == false
+| where RoleName in~ (
+    "Global Administrator",
+    "Privileged Role Administrator",
+    "Security Administrator",
+    "User Administrator"
+)
+| project
+    TimeGenerated,
+    ActorUserPrincipalName,
+    TargetUserPrincipalName,
+    RoleName,
+    OperationName,
+    Result,
+    IsApprovedChange,
+    IsMalicious,
+    Severity,
+    CorrelationId,
+    Notes
